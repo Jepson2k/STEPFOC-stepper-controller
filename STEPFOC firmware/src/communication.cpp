@@ -1274,6 +1274,8 @@ void UART_protocol(Stream &Serialport)
                     else
                     {
                         controller.CAN_ID = temp_var;
+                        if (controller.CAN_init_error == 0)
+                            CANSetNodeFilter(controller.CAN_ID);
                     }
                 }
 
