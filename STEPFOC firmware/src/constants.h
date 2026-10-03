@@ -217,6 +217,47 @@ CAN BUS CONSTANTS
 #define IN_SETTINGS 35
 #define SETTINGS_BIT_BRAKE_COAST (1 << 0) // 1 = brake, 0 = coast (controller.brake_coast)
 
+
+// Loop-rate capture for tuning and diagnostics (host only). IN_CAPTURE, DLC 3: data[0] =
+// record every Nth control loop (1 = 6250 Hz), data[1..2] = samples wanted (BE u16, at most
+// CAPTURE_LEN). Recording starts on the next loop and stops by itself. The velocity the loop
+// sees (Velocity_Filter, ticks/s / CAPTURE_VEL_SCALE) and Iq (mA) are kept as int16 pairs.
+#define IN_CAPTURE 38
+// OUT_IN_CAPTURE, DLC 3 request: data[0] = channel (0 velocity, 1 Iq, 2 electrical phase as
+// 0..16383 per cycle, 0xFF status), data[1..2] =
+// chunk (BE u16); reply DLC 7: channel, chunk (BE u16), samples 2*chunk and 2*chunk+1 (BE
+// int16, zero past the end). Channel 0xFF answers the status instead: samples recorded,
+// samples wanted, divisor.
+#define OUT_IN_CAPTURE 39
+#define CAPTURE_LEN 1024
+#define CAPTURE_VEL_SCALE 16
+// Ripple feedforward (host only). IN_RIPPLE, DLC 6: data[0] = slot (0..RIPPLE_SLOTS-1),
+// data[1] = harmonic of the electrical phase (0 clears the slot), data[2..3] = cosine and
+// data[4..5] = sine amplitude (BE int16, mA). The velocity and position loops add
+// sum(a cos(h phase) + b sin(h phase)) to their current setpoint, phase being the rotor's
+// electrical angle from the raw encoder count: cogging and commutation error repeat with it.
+#define IN_RIPPLE 40
+#define RIPPLE_SLOTS 8
+// Velocity filter window (host only). IN_VEL_WINDOW, DLC 1: data[0] = the moving average's length
+// in control loops (VELOCITY_WINDOW_MIN..MAX; the vendor's is 20). The speed the loops act on
+// moves in steps of LOOP_FREQ / window ticks/s: a longer window resolves slow speed finer and
+// lags more. A REMOTE_FRAME answers the window in force.
+#define IN_VEL_WINDOW 41
+#define VELOCITY_WINDOW_DEFAULT 20
+#define VELOCITY_WINDOW_MIN 4
+#define VELOCITY_WINDOW_MAX 64
+// Capture stream (host only). IN_CAPTURE_STREAM, DATA frame DLC 0: the drive sends every pair of
+// every capture channel recorded so far, laid out like the OUT_IN_CAPTURE reply but under
+// OUT_CAPTURE_STREAM -- its own id, so a streamed frame never shares an arbitration id with a
+// host OUT_IN_CAPTURE request (two frames with one id and different lengths both win arbitration
+// and collide). Channel 0 then 1 then 2 in pair order, one frame every CAPTURE_STREAM_GAP_US from
+// loop() and only into a free mailbox, so the stream takes under half the bus, the host's command
+// traffic keeps its slots, and loop() never waits on it. A new IN_CAPTURE or stream request
+// restarts it. Pairs the host misses it reads back with OUT_IN_CAPTURE one at a time.
+#define IN_CAPTURE_STREAM 42
+#define OUT_CAPTURE_STREAM 43
+#define CAPTURE_STREAM_GAP_US 320
+
 // INPUT CAN command IDS (Commands that spectral driver can receive)
 // To these commands spectral responds with specific command ID
 #define IN_DATA_PACK_1 2
