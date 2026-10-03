@@ -156,13 +156,7 @@ void CANSetFilter(uint8_t index, uint8_t scale, uint8_t mode, uint8_t fifo, uint
 
 }
 
-/// @brief Accept only frames addressed to this node.
-/// @details The 11-bit id carries the node in its top four bits (see
-/// Combine_2_CAN_ID). The reset filter accepts everything, so every drive
-/// on a shared bus takes every frame into its 3-deep FIFO and sorts them in
-/// software; with six drives polled at 250 Hz that is most of the bus, and
-/// the FIFO overflows on the nodes that lose arbitration. Mask mode on the
-/// node bits alone keeps data and remote frames alike.
+/// Accept only frames addressed to this node (node id = top 4 bits of the 11-bit id).
 void CANSetNodeFilter(uint8_t node_id) {
   uint32_t id   = ((uint32_t)(node_id & 0xFU) << 7U) << 21U;
   uint32_t mask = ((uint32_t)0xFU << 7U) << 21U;
@@ -253,9 +247,7 @@ bool CANInit(BITRATE bitrate, int remap)
   while (!(CAN1->MSR & 0x1UL));         // Wait for Initialization mode
 
   //CAN1->MCR = 0x51UL;                 // Hardware initialization(No automatic retransmission)
-  // ABOM | TXFP | INRQ: automatic retransmission, and the three transmit
-  // mailboxes go out in request order (TXFP), not by identifier, so a
-  // reply never overtakes the one queued before it.
+  // TXFP: transmit mailboxes go out in request order, so replies are not reordered.
   CAN1->MCR = 0x45UL;
    
   // Set bit timing register 
@@ -364,10 +356,7 @@ void CANSend(CAN_msg_t* CAN_tx_msg)
       out |= STM32_CAN_TIR_RTR;
   }
 
-  // Any empty mailbox; writing one that is still pending would silently
-  // replace the frame in it. Three queued frames clear in ~400 us at
-  // 1 Mbit, so a mailbox that stays busy past a millisecond means the bus
-  // is off, and the frame is dropped rather than the loop held.
+  // Wait at most 1 ms for a free mailbox; drop the frame rather than stall loop().
   uint32_t started = micros();
   while (!(CAN1->TSR & STM32_CAN_TSR_TME_ANY)) {
     if (micros() - started > 1000U) {

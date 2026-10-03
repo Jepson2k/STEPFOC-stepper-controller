@@ -470,22 +470,20 @@ void IT_callback(void)
     Brake_Coast();
   }
 
-  /* Loop-rate capture (IN_CAPTURE), after the loop so a sample and the setpoint it led to
-     line up: the velocity the loop acted on, the Iq just measured, and the electrical phase */
+  /* Capture after the loop, so a sample lines up with the setpoint it produced */
   if (controller.Capture_len > 0 && controller.Capture_pos < controller.Capture_len)
   {
     controller.Capture_tick = controller.Capture_tick + 1;
     if (controller.Capture_tick >= controller.Capture_div)
     {
       controller.Capture_tick = 0;
-      /* Saturate, do not wrap: a speed past the scale's range reads as the range's end, not
-         as the opposite sign */
+      /* Saturate rather than wrap */
       int32_t scaled = controller.Velocity_Filter / CAPTURE_VEL_SCALE;
       if (scaled > 32767) scaled = 32767;
       else if (scaled < -32768) scaled = -32768;
       Capture_vel[controller.Capture_pos] = (int16_t)scaled;
       Capture_iq[controller.Capture_pos] = (int16_t)FOC.Iq;
-      /* The commutation angle the ripple feedforward runs on, so a fit to it applies as fitted */
+      /* The angle the ripple feedforward uses */
       Capture_phase[controller.Capture_pos] =
           (int16_t)((int32_t)(controller.Electric_Angle * (CPR / PI2)) & (CPR - 1));
       controller.Capture_pos = controller.Capture_pos + 1;
@@ -2279,10 +2277,7 @@ void PD_mode()
   Phase_order();
 }
 
-/// Current the velocity and position loops add to cancel ripple that repeats
-/// with the rotor's electrical angle (cogging, commutation error) [mA]:
-/// sum over the IN_RIPPLE slots of a cos(h phase) + b sin(h phase). Integer
-/// only, from the raw encoder count, so it costs the ISR a few multiplies.
+/// Ripple feedforward [mA]: the IN_RIPPLE slots at this loop's electrical angle.
 int32_t Ripple_ff_mA()
 {
   uint32_t top = 0;
@@ -2291,8 +2286,7 @@ int32_t Ripple_ff_mA()
       top = Ripple_harmonic[s];
   if (top == 0)
     return 0;
-  /* The commutation took sin and cos of the electrical angle this loop; the harmonics follow by
-     angle addition in Q15, integer multiplies only */
+  /* Harmonics from the commutation's sin/cos by angle addition, in Q15 */
   int32_t sine[RIPPLE_MAX_HARMONIC + 1];
   int32_t cosine[RIPPLE_MAX_HARMONIC + 1];
   sine[1] = (int32_t)(FOC.sine_value * 32767.0f);

@@ -22,9 +22,7 @@
 #include "communication_CAN.h"
 #include "bootloader_config.h"
 
-/// The capture stream IN_CAPTURE_STREAM asked for: the channel being sent (3 = none), the next
-/// pair of it, and when the last frame went out. loop() only; the control interrupt never
-/// touches it.
+// Capture stream progress, loop() only; channel 3 = idle.
 static uint8_t Capture_stream_channel = 3;
 static int Capture_stream_chunk = 0;
 static uint32_t Capture_stream_last_us = 0;
@@ -172,13 +170,7 @@ void CAN_protocol(Stream &Serialport)
                         }
                     }
                     */
-                    // The velocity integral is charge against the load the
-                    // loop last drove. Coming from any other mode (current,
-                    // impedance, idle) it is stale: a release that ran in
-                    // current mode leaves the wind-up of the push before it,
-                    // and the first position frame would slam the joint
-                    // with it (~850 mA on a 4:1 wrist). Position<->velocity
-                    // keep it: the same loop carries on.
+                    // The integral is stale after any other mode (wind-up from before a release); position and velocity share it.
                     if (controller.Controller_mode != 1 && controller.Controller_mode != 2)
                         PID.V_errSum = 0;
                     controller.Controller_mode = 1;
@@ -1162,9 +1154,7 @@ void Voltage_CAN()
     controller.Send_heartbeat = 0;
 }
 
-/// One frame of the capture stream when its turn has come (IN_CAPTURE_STREAM): a pair every
-/// CAPTURE_STREAM_GAP_US, and only into a free mailbox, so loop() never waits on it. Channels
-/// go out 0, 1, 2, each pair in order, up to the last pair recorded.
+/// Send the next capture stream frame if one is due and a mailbox is free.
 void Capture_stream_CAN()
 {
     if (Capture_stream_channel > 2) return;
@@ -1183,8 +1173,7 @@ void Capture_stream_CAN()
     Capture_stream_last_us = now;
 }
 
-/// One chunk of the loop-rate capture, or its status for channel 0xFF, under `reply_cmd`:
-/// OUT_IN_CAPTURE for a host read, OUT_CAPTURE_STREAM for the stream.
+/// One capture pair, or the status for channel 0xFF.
 void Capture_read_CAN(byte channel, int chunk, uint8_t reply_cmd)
 {
     byte data_buffer_send[2];
@@ -1345,9 +1334,7 @@ static void Put_float_CAN(uint8_t *at, float value)
     at[3] = data.i & 0xFF;
 }
 
-/// Answer a REMOTE_FRAME on a configuration command with the values in
-/// force, in the layout that command's data frame writes them: the host can
-/// check what a drive runs instead of trusting that a write landed.
+/// Answer a REMOTE_FRAME on a config command with the values in force.
 void Config_readback_CAN(uint8_t cmd)
 {
     byte four[4];
