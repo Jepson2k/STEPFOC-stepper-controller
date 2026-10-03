@@ -22,9 +22,7 @@
 #include "communication_CAN.h"
 #include "bootloader_config.h"
 
-/// The capture stream IN_CAPTURE_STREAM asked for: the channel being sent (3 = none), the next
-/// pair of it, and when the last frame went out. loop() only; the control interrupt never
-/// touches it.
+// Capture stream progress, loop() only; channel 3 = idle.
 static uint8_t Capture_stream_channel = 3;
 static int Capture_stream_chunk = 0;
 static uint32_t Capture_stream_last_us = 0;
@@ -1098,9 +1096,7 @@ void Voltage_CAN()
     controller.Send_heartbeat = 0;
 }
 
-/// One frame of the capture stream when its turn has come (IN_CAPTURE_STREAM): a pair every
-/// CAPTURE_STREAM_GAP_US, and only into a free mailbox, so loop() never waits on it. Channels
-/// go out 0, 1, 2, each pair in order, up to the last pair recorded.
+/// Send the next capture stream frame if one is due and a mailbox is free.
 void Capture_stream_CAN()
 {
     if (Capture_stream_channel > 2) return;
@@ -1119,8 +1115,7 @@ void Capture_stream_CAN()
     Capture_stream_last_us = now;
 }
 
-/// One chunk of the loop-rate capture, or its status for channel 0xFF, under `reply_cmd`:
-/// OUT_IN_CAPTURE for a host read, OUT_CAPTURE_STREAM for the stream.
+/// One capture pair, or the status for channel 0xFF.
 void Capture_read_CAN(byte channel, int chunk, uint8_t reply_cmd)
 {
     byte data_buffer_send[2];
