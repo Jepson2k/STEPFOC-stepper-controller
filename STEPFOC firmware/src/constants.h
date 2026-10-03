@@ -246,12 +246,13 @@ CAN BUS CONSTANTS
 #define CAPTURE_LEN 1024
 #define CAPTURE_VEL_SCALE 16
 // Ripple feedforward (host only). IN_RIPPLE, DLC 6: data[0] = slot (0..RIPPLE_SLOTS-1),
-// data[1] = harmonic of the electrical phase (0 clears the slot), data[2..3] = cosine and
+// data[1] = harmonic of the electrical angle (0 clears the slot, at most RIPPLE_MAX_HARMONIC), data[2..3] = cosine and
 // data[4..5] = sine amplitude (BE int16, mA). The velocity and position loops add
-// sum(a cos(h phase) + b sin(h phase)) to their current setpoint, phase being the rotor's
-// electrical angle from the raw encoder count: cogging and commutation error repeat with it.
+// sum(a cos(h phase) + b sin(h phase)) to their current setpoint, phase being the
+// commutation's electrical angle: cogging and commutation error repeat with it.
 #define IN_RIPPLE 40
 #define RIPPLE_SLOTS 8
+#define RIPPLE_MAX_HARMONIC 16
 // Velocity filter window (host only). IN_VEL_WINDOW, DLC 1: data[0] = the moving average's length
 // in control loops (VELOCITY_WINDOW_MIN..MAX; the vendor's is 20). The speed the loops act on
 // moves in steps of LOOP_FREQ / window ticks/s: a longer window resolves slow speed finer and

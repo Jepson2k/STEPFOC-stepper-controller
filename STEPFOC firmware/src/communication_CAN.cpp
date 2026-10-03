@@ -946,7 +946,8 @@ void CAN_protocol(Stream &Serialport)
             }
 
             case IN_RIPPLE:{
-                if(CAN_RX_msg.type == DATA_FRAME && CAN_RX_msg.len == 6 && CAN_RX_msg.data[0] < RIPPLE_SLOTS){
+                if(CAN_RX_msg.type == DATA_FRAME && CAN_RX_msg.len == 6 && CAN_RX_msg.data[0] < RIPPLE_SLOTS
+                   && CAN_RX_msg.data[1] <= RIPPLE_MAX_HARMONIC){
                     uint8_t slot = CAN_RX_msg.data[0];
                     // Harmonic last: the ISR skips a slot while it is 0.
                     Ripple_harmonic[slot] = 0;
