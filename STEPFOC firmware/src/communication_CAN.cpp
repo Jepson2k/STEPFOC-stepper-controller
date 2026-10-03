@@ -1169,7 +1169,7 @@ void Capture_stream_CAN()
     if (Capture_stream_channel > 2) return;
     const uint32_t now = micros();
     if (now - Capture_stream_last_us < CAPTURE_STREAM_GAP_US) return;
-    if (!(CAN1->TSR & STM32_CAN_TSR_TME_ANY)) return;
+    if (!(CAN1->TSR & CAN_TSR_TME0)) return;   // mailbox 0 free: the one every CANSend may use
     const int pairs = (controller.Capture_pos + 1) / 2;
     while (Capture_stream_chunk >= pairs)
     {
