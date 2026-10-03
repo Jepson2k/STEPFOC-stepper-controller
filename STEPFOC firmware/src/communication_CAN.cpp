@@ -145,9 +145,7 @@ void CAN_protocol(Stream &Serialport)
                     const int position_setpoint = three_bytes_to_int(temp_buffer);
                     const int feedforward_speed = three_bytes_to_int(temp_buffer1);
                     const int feedforward_current = two_bytes_to_int(temp_buffer2);
-                    // Setpoints, the integral and the mode change together, or
-                    // one control interrupt could integrate the new error on
-                    // the old mode between them.
+                    // One critical section, so the ISR never runs the new setpoint on the old mode.
                     const uint32_t irq = __get_PRIMASK();
                     __disable_irq();
                     PID.Position_setpoint = position_setpoint;
@@ -171,13 +169,7 @@ void CAN_protocol(Stream &Serialport)
                         }
                     }
                     */
-                    // The velocity integral is charge against the load the
-                    // loop last drove. Coming from any other mode (current,
-                    // impedance, idle) it is stale: a release that ran in
-                    // current mode leaves the wind-up of the push before it,
-                    // and the first position frame would slam the joint
-                    // with it (~850 mA on a 4:1 wrist). Position<->velocity
-                    // keep it: the same loop carries on.
+                    // The integral is stale after any other mode (wind-up from before a release); position and velocity share it.
                     if (controller.Controller_mode != 1 && controller.Controller_mode != 2)
                         PID.V_errSum = 0;
                     controller.Controller_mode = 1;
