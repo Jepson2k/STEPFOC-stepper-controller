@@ -485,8 +485,9 @@ void IT_callback(void)
       else if (scaled < -32768) scaled = -32768;
       Capture_vel[controller.Capture_pos] = (int16_t)scaled;
       Capture_iq[controller.Capture_pos] = (int16_t)FOC.Iq;
+      /* The commutation angle the ripple feedforward runs on, so a fit to it applies as fitted */
       Capture_phase[controller.Capture_pos] =
-          (int16_t)(((uint32_t)controller.Position_Raw * (uint32_t)controller.pole_pairs) & 16383U);
+          (int16_t)((int32_t)(controller.Electric_Angle * (CPR / PI2)) & (CPR - 1));
       controller.Capture_pos = controller.Capture_pos + 1;
     }
   }
@@ -2278,48 +2279,36 @@ void PD_mode()
   Phase_order();
 }
 
-/// sin(2 pi k / 256) in Q15, for the ripple feedforward.
-static const int16_t RIPPLE_SINE[256] = {
-    0, 804, 1608, 2410, 3212, 4011, 4808, 5602, 6393, 7179, 7962, 8739, 
-    9512, 10278, 11039, 11793, 12539, 13279, 14010, 14732, 15446, 16151, 16846, 17530, 
-    18204, 18868, 19519, 20159, 20787, 21403, 22005, 22594, 23170, 23731, 24279, 24811, 
-    25329, 25832, 26319, 26790, 27245, 27683, 28105, 28510, 28898, 29268, 29621, 29956, 
-    30273, 30571, 30852, 31113, 31356, 31580, 31785, 31971, 32137, 32285, 32412, 32521, 
-    32609, 32678, 32728, 32757, 32767, 32757, 32728, 32678, 32609, 32521, 32412, 32285, 
-    32137, 31971, 31785, 31580, 31356, 31113, 30852, 30571, 30273, 29956, 29621, 29268, 
-    28898, 28510, 28105, 27683, 27245, 26790, 26319, 25832, 25329, 24811, 24279, 23731, 
-    23170, 22594, 22005, 21403, 20787, 20159, 19519, 18868, 18204, 17530, 16846, 16151, 
-    15446, 14732, 14010, 13279, 12539, 11793, 11039, 10278, 9512, 8739, 7962, 7179, 
-    6393, 5602, 4808, 4011, 3212, 2410, 1608, 804, 0, -804, -1608, -2410, 
-    -3212, -4011, -4808, -5602, -6393, -7179, -7962, -8739, -9512, -10278, -11039, -11793, 
-    -12539, -13279, -14010, -14732, -15446, -16151, -16846, -17530, -18204, -18868, -19519, -20159, 
-    -20787, -21403, -22005, -22594, -23170, -23731, -24279, -24811, -25329, -25832, -26319, -26790, 
-    -27245, -27683, -28105, -28510, -28898, -29268, -29621, -29956, -30273, -30571, -30852, -31113, 
-    -31356, -31580, -31785, -31971, -32137, -32285, -32412, -32521, -32609, -32678, -32728, -32757, 
-    -32767, -32757, -32728, -32678, -32609, -32521, -32412, -32285, -32137, -31971, -31785, -31580, 
-    -31356, -31113, -30852, -30571, -30273, -29956, -29621, -29268, -28898, -28510, -28105, -27683, 
-    -27245, -26790, -26319, -25832, -25329, -24811, -24279, -23731, -23170, -22594, -22005, -21403, 
-    -20787, -20159, -19519, -18868, -18204, -17530, -16846, -16151, -15446, -14732, -14010, -13279, 
-    -12539, -11793, -11039, -10278, -9512, -8739, -7962, -7179, -6393, -5602, -4808, -4011, 
-    -3212, -2410, -1608, -804};
-
 /// Current the velocity and position loops add to cancel ripple that repeats
 /// with the rotor's electrical angle (cogging, commutation error) [mA]:
 /// sum over the IN_RIPPLE slots of a cos(h phase) + b sin(h phase). Integer
 /// only, from the raw encoder count, so it costs the ISR a few multiplies.
 int32_t Ripple_ff_mA()
 {
-  uint32_t phase = ((uint32_t)controller.Position_Raw * (uint32_t)controller.pole_pairs) & 16383U;
+  uint32_t top = 0;
+  for (int s = 0; s < RIPPLE_SLOTS; s++)
+    if (Ripple_harmonic[s] > top)
+      top = Ripple_harmonic[s];
+  if (top == 0)
+    return 0;
+  /* The commutation took sin and cos of the electrical angle this loop; the harmonics follow by
+     angle addition in Q15, integer multiplies only */
+  int32_t sine[RIPPLE_MAX_HARMONIC + 1];
+  int32_t cosine[RIPPLE_MAX_HARMONIC + 1];
+  sine[1] = (int32_t)(FOC.sine_value * 32767.0f);
+  cosine[1] = (int32_t)(FOC.cosine_value * 32767.0f);
+  for (uint32_t k = 2; k <= top; k++)
+  {
+    sine[k] = (sine[k - 1] * cosine[1] + cosine[k - 1] * sine[1]) >> 15;
+    cosine[k] = (cosine[k - 1] * cosine[1] - sine[k - 1] * sine[1]) >> 15;
+  }
   int32_t sum = 0;
   for (int s = 0; s < RIPPLE_SLOTS; s++)
   {
     uint32_t h = Ripple_harmonic[s];
     if (h == 0)
       continue;
-    uint32_t index = ((phase * h) >> 6) & 255U;
-    int32_t sine = RIPPLE_SINE[index];
-    int32_t cosine = RIPPLE_SINE[(index + 64U) & 255U];
-    sum += ((int32_t)Ripple_a[s] * cosine + (int32_t)Ripple_b[s] * sine) >> 15;
+    sum += ((int32_t)Ripple_a[s] * cosine[h] + (int32_t)Ripple_b[s] * sine[h]) >> 15;
   }
   return sum;
 }
