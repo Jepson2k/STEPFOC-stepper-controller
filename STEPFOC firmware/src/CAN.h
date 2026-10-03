@@ -93,8 +93,7 @@ void CANSetFilter(uint8_t index, uint8_t scale, uint8_t mode, uint8_t fifo, uint
 void CANSetNodeFilter(uint8_t node_id);
 bool CANInit(BITRATE bitrate, int remap);
 void CANReceive(CAN_msg_t* CAN_rx_msg);
-/// False when no transmit mailbox freed within a millisecond and the frame
-/// was dropped; counted in CAN_tx_dropped.
+/// False if no mailbox freed within 1 ms (counted in CAN_tx_dropped).
 bool CANSend(CAN_msg_t* CAN_tx_msg);
 /// Receive FIFO overruns and dropped transmissions since boot.
 extern volatile uint32_t CAN_rx_overruns;
