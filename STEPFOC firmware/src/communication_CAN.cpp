@@ -1083,8 +1083,7 @@ void Device_info_CAN()
 void Telemetry_CAN()
 {
     byte data_buffer_send[2];
-    // One snapshot: the fields and the error bit in the id come from the
-    // same instant, not from either side of a control interrupt.
+    // One snapshot, so the fields and the error bit agree.
     const uint32_t irq = __get_PRIMASK();
     __disable_irq();
     const int temp_deg = controller.TEMP_DEG;
@@ -1190,9 +1189,7 @@ static void Put_float_CAN(uint8_t *at, float value)
     at[3] = data.i & 0xFF;
 }
 
-/// Answer a REMOTE_FRAME on a configuration command with the values in
-/// force, in the layout that command's data frame writes them: the host can
-/// check what a drive runs instead of trusting that a write landed.
+/// Answer a REMOTE_FRAME on a config command with the values in force.
 void Config_readback_CAN(uint8_t cmd)
 {
     byte four[4];

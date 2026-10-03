@@ -255,7 +255,7 @@ static void Load_settings_from_eeprom()
   controller.watchdog_action = readInt(WATCHDOG_ACTION_EEPROM);
   controller.Heartbeat_rate_ms = readInt(HEARTBEAT_RATE_EEPROM);
   controller.I_AM_GRIPPER = readInt(I_AM_GRIPPER_EEPROM);
-  // Outside both CRC blocks (see GRIPPER_ID_EEPROM): a cell never written reads as -1.
+  // An unwritten cell reads -1.
   int gripper_id = readInt(GRIPPER_ID_EEPROM);
   controller.GRIPPER_ID = (gripper_id < 0 || gripper_id > 255) ? 0 : gripper_id;
   PID.Reset_integral_accumulator = readInt(RESET_INTEGRAL_EEPROM);
